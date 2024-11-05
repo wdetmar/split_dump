@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.9"
+__version__ = "2.0"
 
 import os
 import argparse
@@ -12,7 +12,7 @@ import re
 DEFAULT_SQL_CONDITIONS = [
     "DROP TABLE",
     "CREATE TABLE IF NOT EXISTS",
-    "create or replace TABLE",
+    "CREATE OR REPLACE TABLE",
     "CREATE OR REPLACE FUNCTION",
     "create or replace view",
     "CREATE OR REPLACE PROCEDURE"
@@ -45,9 +45,7 @@ def extract_function_name(line, sql_conditions):
             elif "VIEW" in condition.upper():
                 match = re.search(r'CREATE OR REPLACE VIEW\s+([^\s;]+)', line, re.IGNORECASE)
             elif "TABLE" in condition.upper():
-                match = re.search(r'(CREATE TABLE|DROP TABLE)\s+([^\s;]+)', line, re.IGNORECASE)
-                if match:
-                    return match.group(2)
+                match = re.search(r'CREATE OR REPLACE TABLE\s+([^\s;]+)', line, re.IGNORECASE)
             elif "PROCEDURE" in condition.upper():
                 match = re.search(r'CREATE OR REPLACE PROCEDURE\s+([^\s(]+)', line, re.IGNORECASE)
             else:
