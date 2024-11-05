@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.8"
+__version__ = "1.9"
 
 import os
 import argparse
@@ -55,7 +55,6 @@ def extract_function_name(line, sql_conditions):
 
             if match:
                 return match.group(1)
-
     return None
 
 def handle_line(line, ignore_blank_lines):
@@ -79,27 +78,32 @@ def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines,
                 if processed_line is None:
                     continue
 
+                # Extract the file name if a condition is found in the line
                 if any(keyword in processed_line.upper() for keyword in sql_conditions):
                     extracted_name = extract_function_name(processed_line, sql_conditions)
                     if extracted_name:
-                        # Save the current content with the previous file_name if not the first segment
-                        if current_content:
-                            actual_file_name = file_name if file_name else f'file_{file_count}'
-                            save_file(current_content, output_dir, actual_file_name)
+                        # If current content is not empty, save it with the current file_name
+                        if current_content and file_name:
+                            save_file(current_content, output_dir, file_name)
                             file_count += 1
-                            current_content = []  # Reset content for the next file
+                            current_content = []  # Reset content for the next section
 
-                        # Update file_name with the newly extracted name for this section
+                        # Update file_name with the extracted name for this new section
                         file_name = extracted_name
 
+                # Check if we need to split the file based on the condition
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
                 if split and current_content:
-                    # Save and reset only after ensuring there is content to write
-                    actual_file_name = file_name if file_name else f'file_{file_count}'
-                    save_file(current_content, output_dir, actual_file_name)
+                    # Save the content and reset only if there's content to write
+                    if file_name:
+                        save_file(current_content, output_dir, file_name)
+                    else:
+                        save_file(current_content, output_dir, f'file_{file_count}')
+
                     file_count += 1
                     current_content = []  # Reset content for the next section
                     condition_hit_count = 0  # Reset condition count after split
+                    file_name = None  # Reset file name for the next section
 
                 current_content.append(processed_line)
 
