@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.6"
+__version__ = "1.7"
 
 import os
 import argparse
@@ -77,35 +77,40 @@ def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines,
 
     start_time = time.time()
     file_count = 0
+    current_content = []
+    condition_hit_count = 0
+    file_name = None  # Will store the function/view/table name
+
     try:
         with open(input_file_path, 'r', encoding='utf-8') as file:
-            current_content = []
-            condition_hit_count = 0
-            file_name = f'file_{file_count}'  # Default file name
-
             for line in file:
                 processed_line = handle_line(line, ignore_blank_lines)
                 if processed_line is None:
                     continue
 
-                # Check for any SQL condition and extract the relevant name if found
+                # Check if the line contains any SQL condition to split and set a file name
                 if any(keyword in processed_line.upper() for keyword in sql_conditions):
                     extracted_name = extract_function_name(processed_line, sql_conditions)
                     if extracted_name:
                         file_name = extracted_name  # Update file name with the extracted name
 
+                # Check if we need to split the file based on the condition
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
-                if split:
-                    save_file(current_content, output_dir, file_name)
+                if split and current_content:
+                    # Ensure file_name is set, otherwise use a default name
+                    actual_file_name = file_name if file_name else f'file_{file_count}'
+                    save_file(current_content, output_dir, actual_file_name)
                     file_count += 1
-                    current_content = []
+                    current_content = []  # Reset content for the next file
                     condition_hit_count = 0
-                    file_name = f'file_{file_count}'  # Reset to default if no function name is found
+                    file_name = None  # Reset file name for the next section
 
                 current_content.append(processed_line)
 
+            # Save any remaining content after the loop
             if current_content:
-                save_file(current_content, output_dir, file_name)
+                actual_file_name = file_name if file_name else f'file_{file_count}'
+                save_file(current_content, output_dir, actual_file_name)
                 file_count += 1
     except Exception as e:
         print(f"Error reading file {input_file_path}: {e}")
