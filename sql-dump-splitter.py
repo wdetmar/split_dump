@@ -31,9 +31,10 @@ def should_split(line, sql_conditions, condition_hit_count, trigger_count):
     return False, condition_hit_count
 
 def extract_function_name(line):
-    # Extracts the function name after "CREATE OR REPLACE FUNCTION" and before the "("
-    match = re.search(r'CREATE OR REPLACE FUNCTION\s+(\w+)', line, re.IGNORECASE)
+    # This regex captures everything after "CREATE OR REPLACE FUNCTION" up to the first "("
+    match = re.search(r'CREATE OR REPLACE FUNCTION\s+([^\s(]+)', line, re.IGNORECASE)
     return match.group(1) if match else None
+
 
 def handle_line(line, ignore_blank_lines):
     if ignore_blank_lines and not line.strip():
