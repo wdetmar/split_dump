@@ -9,7 +9,14 @@ import argparse
 import time
 import re
 
-DEFAULT_SQL_CONDITIONS = ["DROP TABLE", "CREATE TABLE IF NOT EXISTS", "create or replace TABLE", "CREATE OR REPLACE FUNCTION", "create or replace view", "CREATE OR REPLACE PROCEDURE" ]
+DEFAULT_SQL_CONDITIONS = [
+    "DROP TABLE",
+    "CREATE TABLE IF NOT EXISTS",
+    "create or replace TABLE",
+    "CREATE OR REPLACE FUNCTION",
+    "create or replace view",
+    "CREATE OR REPLACE PROCEDURE"
+]
 
 def save_file(content, directory, file_name):
     try:
@@ -81,11 +88,11 @@ def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines,
                 if processed_line is None:
                     continue
 
-               if any(keyword in processed_line.upper() for keyword in sql_conditions):
-                # Extract name based on the matching SQL condition
-                extracted_name = extract_function_name(processed_line, sql_conditions)
-                if extracted_name:
-                    file_name = extracted_name  # Update file name with the extracted name
+                # Check for any SQL condition and extract the relevant name if found
+                if any(keyword in processed_line.upper() for keyword in sql_conditions):
+                    extracted_name = extract_function_name(processed_line, sql_conditions)
+                    if extracted_name:
+                        file_name = extracted_name  # Update file name with the extracted name
 
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
                 if split:
