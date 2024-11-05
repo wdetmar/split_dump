@@ -2,17 +2,18 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.4"
+__version__ = "1.5"
 
 import os
 import argparse
 import time
+import re
 
 DEFAULT_SQL_CONDITIONS = ["DROP TABLE", "CREATE TABLE IF NOT EXISTS", "create or replace TABLE", "CREATE OR REPLACE FUNCTION", "create or replace view", "CREATE OR REPLACE PROCEDURE" ]
 
-def save_file(content, directory, file_index):
+def save_file(content, directory, file_name):
     try:
-        file_path = os.path.join(directory, f'{file_index}.sql')
+        file_path = os.path.join(directory, f'{file_name}.sql')
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(''.join(content))
     except IOError as e:
@@ -29,6 +30,11 @@ def should_split(line, sql_conditions, condition_hit_count, trigger_count):
             return True, condition_hit_count
     return False, condition_hit_count
 
+def extract_function_name(line):
+    # Extracts the function name after "CREATE OR REPLACE FUNCTION" and before the "("
+    match = re.search(r'CREATE OR REPLACE FUNCTION\s+(\w+)', line, re.IGNORECASE)
+    return match.group(1) if match else None
+
 def handle_line(line, ignore_blank_lines):
     if ignore_blank_lines and not line.strip():
         return None
@@ -36,29 +42,38 @@ def handle_line(line, ignore_blank_lines):
 
 def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines, sql_conditions):
     prepare_directory(output_dir)
-    file_count = 0
 
     start_time = time.time()
+    file_count = 0
     try:
         with open(input_file_path, 'r', encoding='utf-8') as file:
             current_content = []
             condition_hit_count = 0
+            file_name = f'file_{file_count}'  # Default file name
 
             for line in file:
                 processed_line = handle_line(line, ignore_blank_lines)
                 if processed_line is None:
                     continue
 
+                if "CREATE OR REPLACE FUNCTION" in processed_line.upper():
+                    # Extract function name when a new function starts
+                    extracted_name = extract_function_name(processed_line)
+                    if extracted_name:
+                        file_name = extracted_name  # Update file name with the function name
+
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
                 if split:
-                    save_file(current_content, output_dir, file_count)
+                    save_file(current_content, output_dir, file_name)
                     file_count += 1
                     current_content = []
                     condition_hit_count = 0
+                    file_name = f'file_{file_count}'  # Reset to default if no function name is found
+
                 current_content.append(processed_line)
 
             if current_content:
-                save_file(current_content, output_dir, file_count)
+                save_file(current_content, output_dir, file_name)
                 file_count += 1
     except Exception as e:
         print(f"Error reading file {input_file_path}: {e}")
