@@ -2,17 +2,18 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.4"
+__version__ = "1.5"
 
 import os
 import argparse
 import time
+import re
 
 DEFAULT_SQL_CONDITIONS = ["DROP TABLE", "CREATE TABLE IF NOT EXISTS", "create or replace TABLE", "CREATE OR REPLACE FUNCTION", "create or replace view", "CREATE OR REPLACE PROCEDURE" ]
 
-def save_file(content, directory, file_index):
+def save_file(content, directory, file_name):
     try:
-        file_path = os.path.join(directory, f'{file_index}.sql')
+        file_path = os.path.join(directory, f'{file_name}.sql')
         with open(file_path, 'w', encoding='utf-8') as file:
             file.write(''.join(content))
     except IOError as e:
@@ -29,6 +30,36 @@ def should_split(line, sql_conditions, condition_hit_count, trigger_count):
             return True, condition_hit_count
     return False, condition_hit_count
 
+def extract_function_name(line, sql_conditions):
+    """
+    Searches for specific SQL conditions in a line and extracts the name following each condition.
+    Supports conditions from the sql_conditions list (like CREATE FUNCTION, CREATE VIEW, etc.).
+    """
+    for condition in sql_conditions:
+        # Create a regex pattern for each condition to capture the name following the condition keyword
+        if condition.upper() in line.upper():
+            if "FUNCTION" in condition.upper():
+                # Capture the function name after "CREATE OR REPLACE FUNCTION" up to the first "("
+                match = re.search(r'CREATE OR REPLACE FUNCTION\s+([^\s(]+)', line, re.IGNORECASE)
+            elif "VIEW" in condition.upper():
+                # Capture the view name after "CREATE OR REPLACE VIEW" up to the first space or semicolon
+                match = re.search(r'CREATE OR REPLACE VIEW\s+([^\s;]+)', line, re.IGNORECASE)
+            elif "TABLE" in condition.upper():
+                # Capture the table name after "CREATE TABLE" or "DROP TABLE" up to the first space or semicolon
+                match = re.search(r'(CREATE TABLE|DROP TABLE)\s+([^\s;]+)', line, re.IGNORECASE)
+                if match:
+                    return match.group(2)  # Table name is in the second group
+            elif "PROCEDURE" in condition.upper():
+                # Capture the procedure name after "CREATE OR REPLACE PROCEDURE" up to the first "(" or space
+                match = re.search(r'CREATE OR REPLACE PROCEDURE\s+([^\s(]+)', line, re.IGNORECASE)
+            else:
+                match = None
+
+            if match:
+                return match.group(1)  # Return the name captured after the SQL keyword
+
+    return None  # Return None if no condition matches
+
 def handle_line(line, ignore_blank_lines):
     if ignore_blank_lines and not line.strip():
         return None
@@ -36,29 +67,38 @@ def handle_line(line, ignore_blank_lines):
 
 def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines, sql_conditions):
     prepare_directory(output_dir)
-    file_count = 0
 
     start_time = time.time()
+    file_count = 0
     try:
         with open(input_file_path, 'r', encoding='utf-8') as file:
             current_content = []
             condition_hit_count = 0
+            file_name = f'file_{file_count}'  # Default file name
 
             for line in file:
                 processed_line = handle_line(line, ignore_blank_lines)
                 if processed_line is None:
                     continue
 
+               if any(keyword in processed_line.upper() for keyword in sql_conditions):
+                # Extract name based on the matching SQL condition
+                extracted_name = extract_function_name(processed_line, sql_conditions)
+                if extracted_name:
+                    file_name = extracted_name  # Update file name with the extracted name
+
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
                 if split:
-                    save_file(current_content, output_dir, file_count)
+                    save_file(current_content, output_dir, file_name)
                     file_count += 1
                     current_content = []
                     condition_hit_count = 0
+                    file_name = f'file_{file_count}'  # Reset to default if no function name is found
+
                 current_content.append(processed_line)
 
             if current_content:
-                save_file(current_content, output_dir, file_count)
+                save_file(current_content, output_dir, file_name)
                 file_count += 1
     except Exception as e:
         print(f"Error reading file {input_file_path}: {e}")
