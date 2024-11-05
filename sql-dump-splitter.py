@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.7"
+__version__ = "1.8"
 
 import os
 import argparse
@@ -38,34 +38,25 @@ def should_split(line, sql_conditions, condition_hit_count, trigger_count):
     return False, condition_hit_count
 
 def extract_function_name(line, sql_conditions):
-    """
-    Searches for specific SQL conditions in a line and extracts the name following each condition.
-    Supports conditions from the sql_conditions list (like CREATE FUNCTION, CREATE VIEW, etc.).
-    """
     for condition in sql_conditions:
-        # Create a regex pattern for each condition to capture the name following the condition keyword
         if condition.upper() in line.upper():
             if "FUNCTION" in condition.upper():
-                # Capture the function name after "CREATE OR REPLACE FUNCTION" up to the first "("
                 match = re.search(r'CREATE OR REPLACE FUNCTION\s+([^\s(]+)', line, re.IGNORECASE)
             elif "VIEW" in condition.upper():
-                # Capture the view name after "CREATE OR REPLACE VIEW" up to the first space or semicolon
                 match = re.search(r'CREATE OR REPLACE VIEW\s+([^\s;]+)', line, re.IGNORECASE)
             elif "TABLE" in condition.upper():
-                # Capture the table name after "CREATE TABLE" or "DROP TABLE" up to the first space or semicolon
                 match = re.search(r'(CREATE TABLE|DROP TABLE)\s+([^\s;]+)', line, re.IGNORECASE)
                 if match:
-                    return match.group(2)  # Table name is in the second group
+                    return match.group(2)
             elif "PROCEDURE" in condition.upper():
-                # Capture the procedure name after "CREATE OR REPLACE PROCEDURE" up to the first "(" or space
                 match = re.search(r'CREATE OR REPLACE PROCEDURE\s+([^\s(]+)', line, re.IGNORECASE)
             else:
                 match = None
 
             if match:
-                return match.group(1)  # Return the name captured after the SQL keyword
+                return match.group(1)
 
-    return None  # Return None if no condition matches
+    return None
 
 def handle_line(line, ignore_blank_lines):
     if ignore_blank_lines and not line.strip():
@@ -79,7 +70,7 @@ def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines,
     file_count = 0
     current_content = []
     condition_hit_count = 0
-    file_name = None  # Will store the function/view/table name
+    file_name = None
 
     try:
         with open(input_file_path, 'r', encoding='utf-8') as file:
@@ -88,26 +79,31 @@ def process_file(input_file_path, output_dir, trigger_count, ignore_blank_lines,
                 if processed_line is None:
                     continue
 
-                # Check if the line contains any SQL condition to split and set a file name
                 if any(keyword in processed_line.upper() for keyword in sql_conditions):
                     extracted_name = extract_function_name(processed_line, sql_conditions)
                     if extracted_name:
-                        file_name = extracted_name  # Update file name with the extracted name
+                        # Save the current content with the previous file_name if not the first segment
+                        if current_content:
+                            actual_file_name = file_name if file_name else f'file_{file_count}'
+                            save_file(current_content, output_dir, actual_file_name)
+                            file_count += 1
+                            current_content = []  # Reset content for the next file
 
-                # Check if we need to split the file based on the condition
+                        # Update file_name with the newly extracted name for this section
+                        file_name = extracted_name
+
                 split, condition_hit_count = should_split(processed_line, sql_conditions, condition_hit_count, trigger_count)
                 if split and current_content:
-                    # Ensure file_name is set, otherwise use a default name
+                    # Save and reset only after ensuring there is content to write
                     actual_file_name = file_name if file_name else f'file_{file_count}'
                     save_file(current_content, output_dir, actual_file_name)
                     file_count += 1
-                    current_content = []  # Reset content for the next file
-                    condition_hit_count = 0
-                    file_name = None  # Reset file name for the next section
+                    current_content = []  # Reset content for the next section
+                    condition_hit_count = 0  # Reset condition count after split
 
                 current_content.append(processed_line)
 
-            # Save any remaining content after the loop
+            # Save any remaining content after loop ends
             if current_content:
                 actual_file_name = file_name if file_name else f'file_{file_count}'
                 save_file(current_content, output_dir, actual_file_name)
