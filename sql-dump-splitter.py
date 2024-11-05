@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 __author__ = "Davyd Maker + AI"
-__version__ = "1.5"
+__version__ = "1.6"
 
 import os
 import argparse
